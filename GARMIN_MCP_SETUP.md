@@ -1,125 +1,112 @@
 # Configuración del MCP de Garmin
 
-## Instalación Rápida
+Guía para conectar [Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp) a un cliente MCP
+(Claude Desktop, Codex, etc.).
 
-### 1. Instalar el MCP Server
+## Requisitos
 
-```bash
-pip install garmin-mcp
-```
+- Python 3.12+
+- `uv` / `uvx` ([instalación](https://docs.astral.sh/uv/getting-started/installation/))
+- Cuenta de Garmin Connect (con código MFA a mano si lo tienes activado)
 
-### 2. Autenticarse con Garmin Connect
+> El paquete **no está publicado en PyPI**: se instala directamente desde el repositorio de GitHub.
+> `pip install garmin-mcp` no funciona.
 
-```bash
-garmin-mcp-auth
-```
-
-Se abrirá un navegador para que inicies sesión con tu cuenta de Garmin Connect. Las credenciales se guardan de forma segura.
-
-### 3. Iniciar el servidor MCP
+## Paso 1 — Autenticarse una sola vez
 
 ```bash
-garmin-mcp
+uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-auth
 ```
 
-El servidor estará disponible en `stdio` listo para ser usado por Claude u otros clientes MCP.
+Te pedirá email, contraseña y código MFA (si aplica). Los tokens OAuth quedan guardados en
+`~/.garminconnect`, así que la contraseña no vuelve a hacer falta.
 
-## Usar con Claude Code
-
-Una vez que el servidor MCP está corriendo, puedes acceder a tus datos de Garmin:
-
-```python
-# Ejemplo: obtener actividades recientes
-tools = [
-    "list_activities",
-    "get_activity", 
-    "get_health_snapshot"
-]
-```
-
-## Herramientas Disponibles Principales
-
-### Actividades
-- `list_activities(limit, start, ...)` - Listar actividades
-- `get_activity(activity_id)` - Detalles completos
-- `get_activities_summary(start_date, end_date)` - Resumen por período
-- `edit_activity(activity_id, ...)` - Editar actividad
-
-### Salud y Bienestar
-- `get_health_snapshot()` - Estado actual
-- `get_heart_rate_data(start_date, end_date)` - Datos de FC
-- `get_sleep_data(start_date, end_date)` - Datos de sueño
-- `get_daily_steps(start_date, end_date)` - Pasos diarios
-- `get_stress_data(start_date, end_date)` - Datos de estrés
-
-### Entrenamientos
-- `get_workouts(start, limit)` - Entrenamientos
-- `get_training_status()` - Estado de entrenamiento
-- `get_training_load_focus()` - Enfoque de carga
-
-### Equipos
-- `get_gear()` - Listar equipos
-- `get_device_info()` - Info de dispositivos
-
-### Descargas
-- `download_activity_file(activity_id, format)` - Descargar actividad (FIT, GPX, TCX, CSV)
-
-## Variables de Entorno Opcionales
+Verificar que las credenciales siguen siendo válidas:
 
 ```bash
-# Filtrar herramientas (lista blanca)
-GARMIN_ENABLED_TOOLS=list_activities,get_activity,get_health_snapshot
-
-# O deshabilitar específicas (lista negra)
-GARMIN_DISABLED_TOOLS=delete_activity
-
-# Directorio para descargar archivos
-GARMIN_FIT_DOWNLOAD_DIR=/path/to/downloads
+uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-auth --verify
 ```
 
-## Estructura de Datos de Ejemplo
+## Paso 2 — Configurar el cliente MCP
 
-### Actividad
+Claude Desktop:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
 ```json
 {
-  "activityId": 12345,
-  "activityName": "Morning Run",
-  "activityType": "running",
-  "distance": 5.0,
-  "duration": 2100,
-  "averageHeartRate": 145,
-  "calories": 450,
-  "startTime": "2024-01-15T06:30:00.000Z"
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ]
+    }
+  }
 }
 ```
 
-### Health Snapshot
+**No pongas `GARMIN_EMAIL` ni `GARMIN_PASSWORD` en la configuración.** El servidor usa los tokens
+guardados en el paso 1; mantener la contraseña fuera del archivo de configuración es más seguro.
+
+## Paso 3 — Reiniciar el cliente
+
+Al reiniciar, las herramientas de Garmin quedan disponibles.
+
+## Reducir el número de herramientas
+
+El servidor registra 110+ herramientas, lo que consume bastante contexto. Se puede filtrar:
+
+| Variable | Efecto |
+|---|---|
+| `GARMIN_ENABLED_TOOLS` | Lista blanca — solo se registran estas. |
+| `GARMIN_DISABLED_TOOLS` | Lista negra — se omiten estas (se ignora si hay lista blanca). |
+
 ```json
-{
-  "steps": 8234,
-  "heart_rate": 62,
-  "sleep_duration": 420,
-  "stress": 25,
-  "respiration_rate": 16
+"env": {
+  "GARMIN_ENABLED_TOOLS": "list_activities,get_activity,get_sleep_data,get_stress_data"
 }
 ```
 
-## Troubleshooting
+Los nombres no distinguen mayúsculas. Un nombre que no coincida con ninguna herramienta se ignora
+con un aviso por stderr.
 
-### "No MCP tools available"
-- Asegúrate que el servidor MCP está corriendo: `garmin-mcp`
-- Verifica que la autenticación es correcta: `garmin-mcp-auth`
+## Categorías de herramientas
 
-### Error de autenticación
-- Regenera credenciales: `rm ~/.garmin_mcp/config.json && garmin-mcp-auth`
-- Verifica que tu cuenta Garmin Connect funciona correctamente
+| Categoría | Nº | Contenido |
+|---|---|---|
+| Activity Management | 20 | Listar, detallar y editar actividades |
+| Health & Wellness | 33 | Pasos, FC, sueño, estrés, respiración |
+| Training & Performance | 13 | Estado de entrenamiento, CTL/ATL/TSB, HRV, VO2 max |
+| Workouts | 8 | Entrenamientos y planes |
+| Devices | 7 | Dispositivos vinculados |
+| Gear Management | 5 | Equipamiento y notas |
+| Weight Tracking | 5 | Peso y composición corporal |
+| Challenges & Badges | 10 | Retos e insignias |
+| Nutrition | 9 | Registro de comidas e ingesta |
+| Women's Health | 3 | Ciclo menstrual y embarazo |
+| User Profile | 3 | Perfil de usuario |
+| Courses | 5 | Rutas, subida/descarga de GPX |
+| Activity Analysis | 2 | Análisis FIT, curva de potencia |
+| File Downloads | 2 | Descarga en FIT, GPX, TCX, CSV |
 
-### Herramientas limitadas
-- Usa `GARMIN_ENABLED_TOOLS` para seleccionar solo lo que necesitas
-- Esto reduce el contexto necesario para Claude
+La lista exacta de nombres está en el README del repositorio original.
+
+## Notas
+
+- **Descargas de archivos:** `download_activity_file` pide un directorio la primera vez; se fija con
+  `set_fit_download_dir` o con la variable `GARMIN_FIT_DOWNLOAD_DIR`.
+- **Varias cuentas:** un proceso del servidor se vincula a una sola cuenta. Para varias, ejecuta una
+  instancia por cuenta con su propio `GARMINTOKENS`.
+- **Análisis de ciclismo:** las herramientas de análisis avanzado requieren medidor de potencia y/o
+  cambio electrónico Di2/eTap.
 
 ## Referencias
 
-- GitHub: https://github.com/Taxuspt/garmin_mcp
-- Python Garmin Connect: https://github.com/cyberjunky/python-garminconnect
-- MCP Protocol: https://modelcontextprotocol.io
+- MCP server: https://github.com/Taxuspt/garmin_mcp
+- Librería subyacente: https://github.com/cyberjunky/python-garminconnect
+- Protocolo MCP: https://modelcontextprotocol.io

@@ -31,47 +31,71 @@ Proyecto para conectar y acceder a datos desde dispositivos Garmin usando el Gar
 ## Configuración
 
 ### Requisitos
-- Python 3.10+
-- MCP Cliente compatible (Claude, etc.)
-- Credenciales de Garmin Connect
+- Python 3.12+
+- `uv` / `uvx`
+- Cliente MCP compatible (Claude Desktop, Codex, etc.)
+- Cuenta de Garmin Connect
 
-### Instalación del MCP Server
+### Autenticación inicial
 
-```bash
-pip install garmin-mcp
-```
-
-### Autenticación Inicial
+El paquete no está en PyPI; se ejecuta desde GitHub:
 
 ```bash
-garmin-mcp-auth
+uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-auth
 ```
 
-Esto abrirá un navegador para autenticar con tu cuenta de Garmin Connect.
+Pide email, contraseña y MFA una sola vez, y guarda los tokens OAuth en `~/.garminconnect`.
 
-### Variables de Entorno Opcionales
+### Configuración del cliente
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": ["--python", "3.12", "--from", "git+https://github.com/Taxuspt/garmin_mcp", "garmin-mcp"]
+    }
+  }
+}
+```
+
+Sin credenciales en el archivo: el servidor usa los tokens guardados.
+
+### Variables de entorno opcionales
 
 ```
-GARMIN_ENABLED_TOOLS=list_activities,get_activity,get_health_snapshot
-GARMIN_FIT_DOWNLOAD_DIR=/path/to/downloads
+GARMIN_ENABLED_TOOLS=list_activities,get_activity,get_sleep_data
+GARMIN_FIT_DOWNLOAD_DIR=/ruta/de/descargas
 ```
 
-### Usar en Claude
-
-El MCP de Garmin está disponible en https://github.com/Taxuspt/garmin_mcp
-
-Para conectarlo a Claude:
-1. Instala el MCP: `pip install garmin-mcp`
-2. Ejecuta la autenticación: `garmin-mcp-auth`
-3. Configura en Claude según la documentación del MCP
+Los pasos completos están en [GARMIN_MCP_SETUP.md](GARMIN_MCP_SETUP.md).
 
 ## Herramientas Disponibles
 
-110+ herramientas incluyendo:
-- `list_activities` - Listar actividades
-- `get_activity` - Detalles de actividad
-- `get_health_snapshot` - Snapshot de salud actual
-- `get_sleep_data` - Datos de sueño
-- `get_daily_steps` - Pasos diarios
-- `get_heart_rate_data` - Datos de FC
-- Y mucho más...
+110+ herramientas. Nombres reales de las más usadas:
+
+**Actividades**
+- `get_activities` — listar actividades con paginación
+- `get_activities_by_date` — actividades en un rango de fechas
+- `get_activity` — detalle de una actividad
+- `get_activity_splits`, `get_activity_weather`, `get_activity_gear`
+- `set_activity_name`, `set_activity_type`, `set_activity_description`,
+  `set_perceived_effort`, `set_activity_feel` — edición
+
+**Salud**
+- `get_stats` / `get_user_summary` / `get_stats_and_body` — resumen diario
+- `get_daily_steps`, `get_steps_data`, `get_weekly_steps`
+- `get_sleep_data`, `get_sleep_summary`
+- `get_heart_rates`, `get_rhr_day`
+- `get_stress_data`, `get_all_day_stress`, `get_weekly_stress`
+- `get_body_battery`, `get_respiration_data`, `get_spo2_data`
+- `get_body_composition`, `get_hydration_data`
+
+**Entrenamiento**
+- `get_training_readiness`, `get_morning_training_readiness`
+- `get_training_effect`, `get_hrv_data`
+- `get_endurance_score`, `get_hill_score`
+- `get_progress_summary_between_dates`
+
+La lista completa está en el README de
+[Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp).
